@@ -157,4 +157,12 @@ pub fn insert_record_to_sub_table(table_name: &str, sub_table_index: usize, reco
     res.map_err(|_| FailedDiskWrite)
 }
 
-// ROWS
+pub fn read_sub_table(table_name: &str, sub_table_index: usize) -> Result<Value, TableError> {
+    let mut sub_table_path = get_path_for_files();
+    sub_table_path.push(table_name);
+    let sub_table_name = format!("sub_table_{}.etch", sub_table_index);
+    sub_table_path.push(sub_table_name.as_str());
+
+    let file = fs::read(sub_table_path).map_err(|_| FailedDiskRead)?;
+    serde_json::from_slice(&file).map_err(|_| FailedDiskRead)
+}

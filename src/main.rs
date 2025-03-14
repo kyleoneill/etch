@@ -40,17 +40,14 @@ async fn main() {
 
     // Loop and listen for connection requests
     loop {
+        // TODO: This breaks the connection after response, not allowing the sender to make another
+        //       request without them creating a new connection
+
         // TODO: Should print or log rather than panic
         let (stream, _address) = match listener.accept().await {
             Ok(res) => res,
             Err(e) => panic!("Failed to accept a connection with error: {:?}", e)
         };
-        // TODO: Respond to the client?
-        //       process should return some sort of UserResponse struct maybe,
-        //       or just something that impls serialize so unique responses from each
-        //       command can be wrapped into a response obj
-        //
-        // Responses should have a code, like "failed", "created", "deleted", etc
         process(&mut state, stream).await;
     }
 }
@@ -70,7 +67,7 @@ async fn process(state: &mut State, stream: TcpStream) {
                                     "id": id
                                 }
                             })
-                        }, // TODO: Return the ID to the user
+                        },
                         Err(e) => {
                             eprintln!("Error while processing insert row command: {}", e);
                             json!({
@@ -82,7 +79,26 @@ async fn process(state: &mut State, stream: TcpStream) {
                         }
                     }
                 },
-                Command::Read => todo!("Read command"),
+                Command::Read => {
+                    // TODO: Access by means other than ID?
+                    match rows::read_data_by_id(state, frame.table.as_str(), frame.data) {
+                        Ok(data) => {
+                            json!({
+                                "code": 200,
+                                "data": data
+                            })
+                        },
+                        Err(e) => {
+                            eprintln!("Error while processing read row command: {}", e);
+                            json!({
+                                "code": 500,
+                                "data": {
+                                    "msg": "Error while processing read row"
+                                }
+                            })
+                        }
+                    }
+                },
                 Command::Update => todo!("Update command"),
                 Command::Delete => todo!("Delete command"),
                 Command::CreateTable => {
