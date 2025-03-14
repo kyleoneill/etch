@@ -17,7 +17,7 @@ use crate::file_reader;
 
 fn generate_new_id(sub_table_index: usize) -> String {
     let id = Uuid::new_v4();
-    format!("{}.{}", sub_table_index.to_string(), id.to_string())
+    format!("{}.{}", sub_table_index, id)
 }
 
 pub fn insert_data(state: &mut State, table_name: &str, mut data: serde_json::Map<String, Value>) -> Result<String, RowError> {
@@ -51,9 +51,9 @@ pub fn insert_data(state: &mut State, table_name: &str, mut data: serde_json::Ma
     let id = generate_new_id(sub_table_index);
     data.insert("_id".to_string(), Value::String(id.clone()));
     let serialized = serde_json::to_string(&data).map_err(|_| FailedInsert)?;
-    table_metadata.sub_tables[sub_table_index] = table_metadata.sub_tables[sub_table_index] + 1;
+    table_metadata.sub_tables[sub_table_index] += 1;
     file_reader::replace_table_metadata(table_name, &table_metadata).map_err(|_| FailedInsert)?;
-    file_reader::insert_record_to_sub_table(table_name, sub_table_index, serialized).map_err(|_| FailedInsert);
+    file_reader::insert_record_to_sub_table(table_name, sub_table_index, serialized).map_err(|_| FailedInsert)?;
 
     Ok(id)
 }

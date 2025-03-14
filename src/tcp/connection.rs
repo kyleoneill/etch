@@ -57,6 +57,22 @@ impl Connection {
         }
     }
 
+    pub async fn respond(&mut self, data: Value) -> Result<usize, TCPError> {
+        let serialized = serde_json::to_string(&data).map_err(|_| TCPError::SerializeResponse)?;
+        let mut serialized_as_bytes = serialized.as_bytes().to_vec();
+
+        // There is no way this is the correct way to do this
+        let mut bytes: Vec<u8> = vec![42];
+        let res_length = serialized_as_bytes.len() as u16;
+        let res_length_bytes: [u8; 2] = res_length.to_be_bytes();
+        bytes.push(res_length_bytes[0]);
+        bytes.push(res_length_bytes[1]);
+        bytes.append(&mut serialized_as_bytes);
+
+        self.stream.writable().await.map_err(|_| TCPError::ConnectionNotWritable)?;
+        self.stream.try_write(&bytes).map_err(|_| TCPError::FailedWrite)
+    }
+
     // pub async fn read_data(&mut self) -> Result<(), TCPError> {
     //     //let mut buf = Cursor::new(&self.buffer[..]);
     //     loop {

@@ -1,6 +1,5 @@
 pub mod table_err;
 
-use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 

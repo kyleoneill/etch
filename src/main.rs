@@ -4,7 +4,7 @@ mod rows;
 mod file_reader;
 
 use std::collections::HashMap;
-use serde_json::Value;
+use serde_json::json;
 use tables::Table;
 
 use tokio::net::{TcpListener, TcpStream};
@@ -49,6 +49,8 @@ async fn main() {
         //       process should return some sort of UserResponse struct maybe,
         //       or just something that impls serialize so unique responses from each
         //       command can be wrapped into a response obj
+        //
+        // Responses should have a code, like "failed", "created", "deleted", etc
         process(&mut state, stream).await;
     }
 }
@@ -57,12 +59,27 @@ async fn process(state: &mut State, stream: TcpStream) {
     let mut connection = Connection::new(stream);
     match connection.read_frame().await {
         Ok(frame) => {
-            // TODO: Errors should be logged, maybe returned to the caller?
-            match frame.command {
+            // TODO: Response should be an actual struct and constructed better
+            let res_data = match frame.command {
                 Command::Insert => {
                     match rows::insert_data(state, frame.table.as_str(), frame.data) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("Error while processing insert row command: {}", e)
+                        Ok(id) => {
+                            json!({
+                                "code": 201,
+                                "data": {
+                                    "id": id
+                                }
+                            })
+                        }, // TODO: Return the ID to the user
+                        Err(e) => {
+                            eprintln!("Error while processing insert row command: {}", e);
+                            json!({
+                                "code": 500,
+                                "data": {
+                                    "msg": "Error while processing insert row"
+                                }
+                            })
+                        }
                     }
                 },
                 Command::Read => todo!("Read command"),
@@ -70,13 +87,28 @@ async fn process(state: &mut State, stream: TcpStream) {
                 Command::Delete => todo!("Delete command"),
                 Command::CreateTable => {
                     match Table::create_table(state, frame) {
-                        Ok(()) => (),
-                        Err(e) => eprintln!("Error while processing create table command: {}", e)
+                        Ok(()) => json!({
+                            "code": 201,
+                            "data": {}
+                        }),
+                        Err(e) => {
+                            eprintln!("Error while processing create table command: {}", e);
+                            json!({
+                                "code": 500,
+                                "data": {
+                                    "msg": "Error while creating table"
+                                }
+                            })
+                        }
                     }
                 },
                 Command::DropTable => todo!("DropTable command"),
+            };
+            match connection.respond(res_data).await {
+                Ok(written_bytes) => println!("Responded to request with {} bytes", written_bytes),
+                Err(e) => eprintln!("Failed to respond to requester with error: {}", e)
             }
         },
-        Err(e) => println!("Failed to read frame with error: {}", e)
+        Err(e) => eprintln!("Failed to read frame with error: {}", e)
     }
 }
